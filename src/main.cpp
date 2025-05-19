@@ -70,8 +70,16 @@ void publish_gps_data() {
     doc["gnss_satellites_count"] = gps.satellites.value();
     doc["error_code"] = 0;
     doc["status"] = "active_normal";
-  } else {
+  } else if (gps.satellites.value() == 0) {
     doc["gnss_satellites_count"] = 0;
+    doc["error_code"] = 7;
+    doc["status"] = "active_no_gps_satellites";
+  } else if (WiFi.RSSI() < -69) {
+    doc["gnss_satellites_count"] = gps.satellites.value();
+    doc["error_code"] = 3;
+    doc["status"] = "active_degraded_signal";
+  } else {
+    doc["gnss_satellites_count"] = gps.satellites.value();
     doc["error_code"] = 8;
     doc["status"] = "active_no_gps_signal";
   }
