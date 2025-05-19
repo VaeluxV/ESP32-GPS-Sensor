@@ -9,7 +9,7 @@
 // === Device Information ===
 const char* sensor_id = "gps_car_2-abc-123";
 const char* device_type = "GPS-multi-tracker";
-const char* firmware_version = "v2025.05.19b";
+const char* firmware_version = "v2025.05.19c";
 const char* connection_type = "Wi-Fi";
 const char* driver_id = "driver_002";
 
@@ -32,7 +32,7 @@ void setup_wifi() {
   Serial.println("Connecting to Wi-Fi...");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+    delay(250);
     Serial.print(".");
   }
   Serial.println("\nWi-Fi connected. IP: " + WiFi.localIP().toString());
@@ -45,7 +45,7 @@ void reconnect_mqtt() {
     String clientId = "ESP32Client-" + String(random(0xffff), HEX);
     if (client.connect(clientId.c_str(), mqtt_user, mqtt_password)) {
       Serial.println("connected");
-      delay(200);  // Give MQTT time to settle before publishing
+      delay(100);  // Give MQTT time to settle before publishing
     } else {
       Serial.print(" failed, rc=");
       Serial.print(client.state());
@@ -129,5 +129,5 @@ void loop() {
     publish_gps_data();
   }
 
-  delay(10);
+  delay(5);
 }
