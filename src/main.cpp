@@ -27,6 +27,12 @@ unsigned long lastPublish = 0;
 unsigned long startMillis;
 const int publish_interval = 5000; // 5 seconds
 
+// === Previous GPS Location & Heading ===
+double prev_lat = 0.0;
+double prev_lon = 0.0;
+bool has_prev_location = false;
+float last_heading = 0.0;
+
 // === Wi-Fi Connection ===
 void setup_wifi() {
   Serial.println("Connecting to Wi-Fi...");
@@ -55,6 +61,41 @@ void reconnect_mqtt() {
   }
 }
 
+// === Calculate distance in meters using Haversine formula ===
+double haversine_distance(double lat1, double lon1, double lat2, double lon2) {
+  const double R = 6371000.0; // Earth's radius in meters
+  double to_rad = PI / 180.0;
+
+  double dLat = (lat2 - lat1) * to_rad;
+  double dLon = (lon2 - lon1) * to_rad;
+  lat1 *= to_rad;
+  lat2 *= to_rad;
+
+  double a = sin(dLat / 2) * sin(dLat / 2) +
+             cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2);
+  double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+  return R * c;
+}
+
+// === Calculate bearing (rotation) from prev to current location ===
+float calculate_bearing(double lat1, double lon1, double lat2, double lon2) {
+  double to_rad = PI / 180.0;
+  double to_deg = 180.0 / PI;
+  double dLon = (lon2 - lon1) * to_rad;
+  lat1 *= to_rad;
+  lat2 *= to_rad;
+
+  double y = sin(dLon) * cos(lat2);
+  double x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon);
+  double bearing = atan2(y, x) * to_deg;
+
+  if (bearing < 0) {
+    bearing += 360.0;
+  }
+
+  return bearing;
+}
+
 // === Read sensors and publish data ===
 void publish_gps_data() {
   int light_level = 0;
@@ -62,26 +103,45 @@ void publish_gps_data() {
   JsonDocument doc;
 
   if (gps.location.isValid()) {
+    double current_lat = gps.location.lat();
+    double current_lon = gps.location.lng();
+    float heading = last_heading;
+
+    if (has_prev_location) {
+      double distance = haversine_distance(prev_lat, prev_lon, current_lat, current_lon);
+      float speed_kmph = gps.speed.kmph();
+
+      if (distance >= 1.0 && speed_kmph >= 2.5) {
+        heading = calculate_bearing(prev_lat, prev_lon, current_lat, current_lon);
+        last_heading = heading;
+      }
+    }
+
+    prev_lat = current_lat;
+    prev_lon = current_lon;
+    has_prev_location = true;
+
     JsonObject location = doc.createNestedObject("location");
-    location["lat"] = gps.location.lat();
-    location["lon"] = gps.location.lng();
+    location["lat"] = current_lat;
+    location["lon"] = current_lon;
     doc["speed"] = gps.speed.kmph();
     doc["estimated_altitude"] = gps.altitude.meters();
     doc["gnss_satellites_count"] = gps.satellites.value();
     doc["error_code"] = 0;
     doc["status"] = "active_normal";
-  } else if (gps.satellites.value() == 0) {
-    doc["gnss_satellites_count"] = 0;
-    doc["error_code"] = 7;
-    doc["status"] = "active_no_gps_satellites";
+    doc["rotation"] = heading;
   } else if (WiFi.RSSI() < -69) {
     doc["gnss_satellites_count"] = gps.satellites.value();
     doc["error_code"] = 3;
     doc["status"] = "active_degraded_signal";
-  } else {
+  } else if (gps.satellites.value() == 0) {
+    doc["gnss_satellites_count"] = 0;
+    doc["error_code"] = 7;
+    doc["status"] = "active_no_gps_satellites";
+  } else if (!gps.location.isValid()) {
     doc["gnss_satellites_count"] = gps.satellites.value();
     doc["error_code"] = 8;
-    doc["status"] = "active_no_gps_signal";
+    doc["status"] = "active_no_gps_location";
   }
 
   doc["light_level"] = light_level;
@@ -106,10 +166,6 @@ void publish_gps_data() {
   bool ok = client.publish("gpstracker001/data", jsonStr.c_str());
 
   Serial.println(ok ? "Publish success" : "Publish FAILED!");
-
-  // // Publish a test string for comparison - debugging only
-  // bool ok2 = client.publish("test/esp", "hello from esp32");
-  // Serial.println(ok2 ? "Published test message" : "Publish test FAILED!");
 }
 
 
