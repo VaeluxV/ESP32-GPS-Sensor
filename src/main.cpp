@@ -9,7 +9,7 @@
 // === Device Information ===
 const char* sensor_id = "gps_car_2-abc-123";
 const char* device_type = "GPS-multi-tracker";
-const char* firmware_version = "v2025.05.19c";
+const char* firmware_version = "v2025.05.20a";
 const char* connection_type = "Wi-Fi";
 const char* driver_id = "driver_002";
 
@@ -111,7 +111,7 @@ void publish_gps_data() {
       double distance = haversine_distance(prev_lat, prev_lon, current_lat, current_lon);
       float speed_kmph = gps.speed.kmph();
 
-      if (distance >= 1.0 && speed_kmph >= 2.5) {
+      if (distance >= 0.5 && speed_kmph >= 1.5) {
         heading = calculate_bearing(prev_lat, prev_lon, current_lat, current_lon);
         last_heading = heading;
       }
