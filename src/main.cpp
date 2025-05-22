@@ -9,7 +9,7 @@
 // === Device Information ===
 const char* sensor_id = "gps_car_2-abc-123";
 const char* device_type = "GPS-multi-tracker";
-const char* firmware_version = "v2025.05.20a";
+const char* firmware_version = "v2025.05.22b";
 const char* connection_type = "Wi-Fi";
 const char* driver_id = "driver_002";
 
@@ -102,34 +102,53 @@ void publish_gps_data() {
 
   JsonDocument doc;
 
+  bool should_publish_location = false;
+
   if (gps.location.isValid()) {
     double current_lat = gps.location.lat();
     double current_lon = gps.location.lng();
-    float heading = last_heading;
 
-    if (has_prev_location) {
-      double distance = haversine_distance(prev_lat, prev_lon, current_lat, current_lon);
-      float speed_kmph = gps.speed.kmph();
-
-      if (distance >= 0.5 && speed_kmph >= 1.5) {
-        heading = calculate_bearing(prev_lat, prev_lon, current_lat, current_lon);
-        last_heading = heading;
-      }
+    // Reject invalid coordinates
+    if (current_lat == 0.0 && current_lon == 0.0) {
+      Serial.println("Location is 0,0 — skipping publish.");
+      return;
     }
 
-    prev_lat = current_lat;
-    prev_lon = current_lon;
-    has_prev_location = true;
+    float speed_kmph = gps.speed.kmph();
+    float heading = last_heading;
+    double distance = 0.0;
 
-    JsonObject location = doc.createNestedObject("location");
-    location["lat"] = current_lat;
-    location["lon"] = current_lon;
-    doc["speed"] = gps.speed.kmph();
-    doc["estimated_altitude"] = gps.altitude.meters();
-    doc["gnss_satellites_count"] = gps.satellites.value();
-    doc["error_code"] = 0;
-    doc["status"] = "active_normal";
-    doc["rotation"] = heading;
+    if (has_prev_location) {
+      distance = haversine_distance(prev_lat, prev_lon, current_lat, current_lon);
+
+      if (distance >= 0.5 && speed_kmph >= 1.0) {
+        heading = calculate_bearing(prev_lat, prev_lon, current_lat, current_lon);
+        last_heading = heading;
+        should_publish_location = true;
+      } else {
+        Serial.println("Movement too small or speed too low — skipping publish.");
+        return;
+      }
+    } else {
+      // First valid fix — publish it
+      should_publish_location = true;
+    }
+
+    if (should_publish_location) {
+      prev_lat = current_lat;
+      prev_lon = current_lon;
+      has_prev_location = true;
+
+      JsonObject location = doc.createNestedObject("location");
+      location["lat"] = current_lat;
+      location["lon"] = current_lon;
+      doc["speed"] = speed_kmph;
+      doc["estimated_altitude"] = gps.altitude.meters();
+      doc["gnss_satellites_count"] = gps.satellites.value();
+      doc["error_code"] = 0;
+      doc["status"] = "active_normal";
+      doc["rotation"] = heading;
+    }
   } else if (WiFi.RSSI() < -69) {
     doc["gnss_satellites_count"] = gps.satellites.value();
     doc["error_code"] = 3;
@@ -138,12 +157,19 @@ void publish_gps_data() {
     doc["gnss_satellites_count"] = 0;
     doc["error_code"] = 7;
     doc["status"] = "active_no_gps_satellites";
-  } else if (!gps.location.isValid()) {
+  } else {
     doc["gnss_satellites_count"] = gps.satellites.value();
     doc["error_code"] = 8;
     doc["status"] = "active_no_gps_location";
   }
 
+  // If the location data wasn’t published, avoid sending partial data
+  if (!should_publish_location) {
+    Serial.println("Not enough valid location data to publish.");
+    return;
+  }
+
+  // Common metadata
   doc["light_level"] = light_level;
   doc["sensor_id"] = sensor_id;
   doc["device_type"] = device_type;
@@ -162,7 +188,6 @@ void publish_gps_data() {
   Serial.printf("Publishing JSON length: %u\n", jsonStr.length());
   Serial.println(jsonStr);
 
-  // Publish using the String's c_str()
   bool ok = client.publish("gpstracker001/data", jsonStr.c_str());
 
   Serial.println(ok ? "Publish success" : "Publish FAILED!");
