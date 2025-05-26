@@ -20,7 +20,7 @@ Made for ESP32 Devkit V1 boards. Might work on other boards but I cannot guarant
 
 ### Connection diagram
 
-![Image of the connection diagram](https://github.com/VaeluxV/ESP32-Mobile-Sensor/blob/b44459f08cd01dd6cff0409a9b73b99ff9f460c7/img/Mobile%20Sensor%20Diagram.jpg)
+![Image of the connection diagram](https://github.com/VaeluxV/ESP32-GPS-Sensor/blob/39a31c72f1e99c6f9ad5aeff16b1c3820f2e28a8/img/Mobile%20Sensor%20Diagram.jpg)
 
 ## Software
 
