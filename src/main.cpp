@@ -7,11 +7,11 @@
 #include <secrets.h> // Include passwords, SSID and other info
 
 // === Device Information ===
-const char* sensor_id = "gps_car_2-abc-123";
+const char* sensor_id = "gps_car_1-abc-002";
 const char* device_type = "GPS-multi-tracker";
-const char* firmware_version = "v2025.05.22b";
+const char* firmware_version = "v2025.06.05a";
 const char* connection_type = "Wi-Fi";
-const char* driver_id = "driver_002";
+const char* driver_id = "driver_001";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -198,6 +198,14 @@ void setup() {
   Serial.begin(115200);
   gpsSerial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
   setup_wifi();
+  // WiFiClient testClient;
+  // Serial.print("Testing TCP connection to MQTT broker... ");
+  // if (testClient.connect(mqtt_server, mqtt_port)) {
+  //   Serial.println("SUCCESS — TCP connection established!");
+  //   testClient.stop();  // Close connection
+  // } else {
+  //   Serial.println("FAILED — cannot connect to MQTT broker at TCP level.");
+  // }
   client.setServer(mqtt_server, mqtt_port);
   client.setBufferSize(1024);
   startMillis = millis();
